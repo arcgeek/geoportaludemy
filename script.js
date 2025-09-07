@@ -186,54 +186,16 @@ class GeoportalLoja {
     }
     
     /**
-     * Crear controles de basemaps
+     * Configurar event listeners para basemaps
      */
-    createBasemapControls() {
-        // Agregar al panel de capas
-        const layersContainer = document.getElementById('layers');
-        
-        // Crear sección de basemaps
-        const basemapSection = document.createElement('div');
-        basemapSection.className = 'panel-section';
-        basemapSection.innerHTML = `
-            <h4 style="margin: 0 0 15px 0; font-weight: 600; color: var(--gray-800); font-size: var(--font-size-sm);">
-                <i class="fas fa-map" style="color: var(--primary-blue); margin-right: 8px;"></i>
-                Mapas Base
-            </h4>
-            <div id="basemap-controls" class="basemap-controls"></div>
-        `;
-        
-        // Insertar antes de las capas
-        layersContainer.parentNode.insertBefore(basemapSection, layersContainer.parentNode.firstChild);
-        
-        const basemapControls = document.getElementById('basemap-controls');
-        
-        const basemapConfigs = [
-            { key: 'cartodb', name: 'CartoDB Dark', icon: 'fas fa-moon' },
-            { key: 'osm', name: 'OpenStreetMap', icon: 'fas fa-map' },
-            { key: 'satellite', name: 'Satélite', icon: 'fas fa-satellite' }
-        ];
-        
-        basemapConfigs.forEach(config => {
-            const basemapItem = document.createElement('div');
-            basemapItem.className = 'basemap-item';
-            basemapItem.innerHTML = `
-                <input type="radio" name="basemap" id="basemap-${config.key}" 
-                       ${config.key === this.currentBasemap ? 'checked' : ''}>
-                <label for="basemap-${config.key}" class="basemap-label">
-                    <i class="${config.icon}"></i>
-                    ${config.name}
-                </label>
-            `;
-            
-            const radio = basemapItem.querySelector('input');
-            radio.addEventListener('change', () => {
-                if (radio.checked) {
-                    this.changeBasemap(config.key);
+    setupBasemapListeners() {
+        document.querySelectorAll('input[name="basemap"]').forEach(radio => {
+            radio.addEventListener('change', (e) => {
+                if (e.target.checked) {
+                    const basemapKey = e.target.id.replace('basemap-', '');
+                    this.changeBasemap(basemapKey);
                 }
             });
-            
-            basemapControls.appendChild(basemapItem);
         });
     }
     
