@@ -119,6 +119,39 @@
                 <!-- Status Panel -->
                 <div id="status" class="status-panel"></div>
 
+                <!-- Basemaps Panel -->
+                <div class="panel">
+                    <div class="panel-header">
+                        <i class="fas fa-map"></i>
+                        <h3>Mapas Base</h3>
+                    </div>
+                    <div class="panel-body">
+                        <div id="basemap-controls" class="basemap-controls">
+                            <div class="basemap-item">
+                                <input type="radio" name="basemap" id="basemap-cartodb" checked>
+                                <label for="basemap-cartodb" class="basemap-label">
+                                    <i class="fas fa-moon"></i>
+                                    CartoDB Dark
+                                </label>
+                            </div>
+                            <div class="basemap-item">
+                                <input type="radio" name="basemap" id="basemap-osm">
+                                <label for="basemap-osm" class="basemap-label">
+                                    <i class="fas fa-map"></i>
+                                    OpenStreetMap
+                                </label>
+                            </div>
+                            <div class="basemap-item">
+                                <input type="radio" name="basemap" id="basemap-satellite">
+                                <label for="basemap-satellite" class="basemap-label">
+                                    <i class="fas fa-satellite"></i>
+                                    Satélite
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Layers Panel -->
                 <div class="panel">
                     <div class="panel-header">
