@@ -54,6 +54,59 @@
                     </div>
                 </div>
 
+                <!-- Share Geoportal Panel -->
+                <div class="panel">
+                    <div class="panel-header">
+                        <i class="fas fa-share-alt"></i>
+                        <h3>Compartir Geoportal</h3>
+                    </div>
+                    <div class="panel-body">
+                        <button class="btn btn-secondary" onclick="mostrarFormularioCompartir()" id="btn-compartir">
+                            <i class="fas fa-plus"></i>
+                            Agregar Geoportal
+                        </button>
+                        
+                        <form id="form-compartir" class="report-form" style="display: none;">
+                            <div class="form-group">
+                                <label for="nombre-geoportal">Nombre del Geoportal</label>
+                                <input type="text" id="nombre-geoportal" class="form-input" placeholder="Ej: Geoportal Municipal de Quito">
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="url-geoportal">URL del Geoportal</label>
+                                <input type="url" id="url-geoportal" class="form-input" placeholder="https://geoportal.ejemplo.com">
+                            </div>
+                            
+                            <div class="location-buttons">
+                                <button type="button" class="btn btn-primary" onclick="obtenerUbicacionCompartir()">
+                                    <i class="fas fa-location-arrow"></i>
+                                    Mi Ubicación
+                                </button>
+                                <button type="button" class="btn btn-secondary" onclick="activarModoMapaCompartir()">
+                                    <i class="fas fa-map-pin"></i>
+                                    Seleccionar en Mapa
+                                </button>
+                            </div>
+                            
+                            <div class="coordinates-info" id="coords-compartir" style="display: none;">
+                                <i class="fas fa-map-marker-alt"></i>
+                                <span>Coordenadas no seleccionadas</span>
+                            </div>
+                            
+                            <div class="form-actions">
+                                <button type="button" class="btn btn-primary" onclick="enviarGeoportalCompartido()">
+                                    <i class="fas fa-share"></i>
+                                    Compartir
+                                </button>
+                                <button type="button" class="btn btn-cancel" onclick="cancelarCompartir()">
+                                    <i class="fas fa-times"></i>
+                                    Cancelar
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
                 <!-- Report Panel -->
                 <div class="panel">
                     <div class="panel-header">
