@@ -157,65 +157,7 @@ body {
     padding: var(--spacing-6);
 }
 
-/* Basemap Controls */
-.basemap-controls {
-    display: flex;
-    flex-direction: column;
-    gap: var(--spacing-3);
-}
-
-.basemap-item {
-    display: flex;
-    align-items: center;
-    gap: var(--spacing-3);
-    padding: var(--spacing-3);
-    background: var(--gray-50);
-    border: 1px solid var(--gray-200);
-    border-radius: var(--border-radius);
-    cursor: pointer;
-    transition: var(--transition);
-}
-
-.basemap-item:hover {
-    background: var(--light-blue);
-    border-color: var(--primary-blue);
-}
-
-.basemap-item input[type="radio"] {
-    width: 18px;
-    height: 18px;
-    accent-color: var(--primary-blue);
-    margin: 0;
-}
-
-.basemap-label {
-    display: flex;
-    align-items: center;
-    gap: var(--spacing-2);
-    flex: 1;
-    font-weight: 500;
-    color: var(--gray-700);
-    cursor: pointer;
-    margin: 0;
-}
-
-.basemap-label i {
-    color: var(--primary-blue);
-    width: 16px;
-    text-align: center;
-}
-
-.basemap-item:has(input:checked) {
-    background: var(--light-blue);
-    border-color: var(--primary-blue);
-}
-
-.basemap-item:has(input:checked) .basemap-label {
-    color: var(--primary-blue);
-    font-weight: 600;
-}
-
-/* Custom Scrollbar for Basemap Section */
+/* Custom Scrollbar */
 .sidebar-content::-webkit-scrollbar {
     width: 6px;
 }
