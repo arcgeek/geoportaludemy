@@ -158,20 +158,6 @@ body {
 }
 
 /* Basemap Controls */
-.panel-section {
-    background: var(--white);
-    border: 1px solid var(--gray-200);
-    border-radius: var(--border-radius-lg);
-    margin-bottom: var(--spacing-6);
-    padding: var(--spacing-5);
-    box-shadow: var(--shadow-sm);
-    transition: var(--transition);
-}
-
-.panel-section:hover {
-    box-shadow: var(--shadow-md);
-}
-
 .basemap-controls {
     display: flex;
     flex-direction: column;
