@@ -1098,6 +1098,26 @@ function toggleFullscreen() {
     geoportal.toggleFullscreen();
 }
 
+function mostrarFormularioCompartir() {
+    geoportal.mostrarFormularioCompartir();
+}
+
+function obtenerUbicacionCompartir() {
+    geoportal.obtenerUbicacionCompartir();
+}
+
+function activarModoMapaCompartir() {
+    geoportal.activarModoMapaCompartir();
+}
+
+function enviarGeoportalCompartido() {
+    geoportal.enviarGeoportalCompartido();
+}
+
+function cancelarCompartir() {
+    geoportal.cancelarCompartir();
+}
+
 // Inicialización cuando el DOM está listo
 document.addEventListener('DOMContentLoaded', function() {
     geoportal = new GeoportalLoja();
