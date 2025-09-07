@@ -133,6 +133,83 @@ class GeoportalLoja {
         // Event listeners del mapa
         this.map.on('click', (e) => this.onMapClick(e));
         this.map.on('zoomend', () => this.onMapZoomEnd());
+        
+        // Crear controles de basemap
+        this.createBasemapControls();
+    }
+    
+    /**
+     * Crear controles de basemap
+     */
+    createBasemapControls() {
+        const basemapConfig = {
+            carto: { name: 'Carto Dark', checked: true },
+            osm: { name: 'OpenStreetMap', checked: false },
+            esri: { name: 'ESRI Satellite', checked: false }
+        };
+        
+        // Agregar controles de basemap al sidebar
+        const basemapSection = document.createElement('div');
+        basemapSection.className = 'panel';
+        basemapSection.innerHTML = `
+            <div class="panel-header">
+                <i class="fas fa-globe"></i>
+                <h3>Mapas Base</h3>
+            </div>
+            <div class="panel-body">
+                <div id="basemap-controls" class="basemap-container"></div>
+            </div>
+        `;
+        
+        // Insertar después del panel de capas
+        const layersPanel = document.querySelector('.sidebar-content .panel:nth-child(3)');
+        if (layersPanel) {
+            layersPanel.insertAdjacentElement('afterend', basemapSection);
+        } else {
+            document.querySelector('.sidebar-content').appendChild(basemapSection);
+        }
+        
+        const basemapContainer = document.getElementById('basemap-controls');
+        
+        Object.entries(basemapConfig).forEach(([key, config]) => {
+            const basemapItem = document.createElement('div');
+            basemapItem.className = 'basemap-item';
+            basemapItem.innerHTML = `
+                <input type="radio" id="basemap-${key}" name="basemap" ${config.checked ? 'checked' : ''}>
+                <label for="basemap-${key}" class="basemap-label">${config.name}</label>
+            `;
+            
+            const radio = basemapItem.querySelector('input');
+            radio.addEventListener('change', (e) => {
+                if (e.target.checked) {
+                    this.changeBasemap(key);
+                }
+            });
+            
+            basemapContainer.appendChild(basemapItem);
+        });
+    }
+    
+    /**
+     * Cambiar basemap
+     */
+    changeBasemap(basemapKey) {
+        if (this.currentBasemap && this.basemaps[this.currentBasemap]) {
+            this.map.removeLayer(this.basemaps[this.currentBasemap]);
+        }
+        
+        if (this.basemaps[basemapKey]) {
+            this.basemaps[basemapKey].addTo(this.map);
+            this.currentBasemap = basemapKey;
+            
+            const basemapNames = {
+                carto: 'Carto Dark',
+                osm: 'OpenStreetMap',
+                esri: 'ESRI Satellite'
+            };
+            
+            this.showStatus('success', `Mapa base cambiado a ${basemapNames[basemapKey]}`);
+        }
     }
     
     /**
@@ -186,57 +263,8 @@ class GeoportalLoja {
     }
     
     /**
-     * Configurar event listeners para basemaps
+     * Crear controles de capas
      */
-    setupBasemapListeners() {
-        document.querySelectorAll('input[name="basemap"]').forEach(radio => {
-            radio.addEventListener('change', (e) => {
-                if (e.target.checked) {
-                    const basemapKey = e.target.id.replace('basemap-', '');
-                    this.changeBasemap(basemapKey);
-                }
-            });
-        });
-    }
-    
-    /**
-     * Cambiar basemap
-     */
-    changeBasemap(basemapKey) {
-        console.log('Intentando cambiar a basemap:', basemapKey);
-        console.log('Basemaps disponibles:', Object.keys(this.basemaps));
-        console.log('Basemap actual:', this.currentBasemap);
-        
-        if (this.basemaps[basemapKey] && basemapKey !== this.currentBasemap) {
-            // Remover basemap actual
-            if (this.basemaps[this.currentBasemap]) {
-                console.log('Removiendo basemap actual:', this.currentBasemap);
-                this.map.removeLayer(this.basemaps[this.currentBasemap]);
-            }
-            
-            // Agregar nuevo basemap
-            console.log('Agregando nuevo basemap:', basemapKey);
-            this.basemaps[basemapKey].addTo(this.map);
-            this.currentBasemap = basemapKey;
-            
-            this.showStatus('success', `Mapa base cambiado a ${this.getBasemapName(basemapKey)}`);
-        } else {
-            console.log('No se pudo cambiar basemap - razón:', 
-                !this.basemaps[basemapKey] ? 'No existe' : 'Ya está activo');
-        }
-    }
-    
-    /**
-     * Obtener nombre del basemap
-     */
-    getBasemapName(key) {
-        const names = {
-            cartodb: 'CartoDB Dark',
-            osm: 'OpenStreetMap',
-            satellite: 'Satélite'
-        };
-        return names[key] || key;
-    }
     createLayerControls() {
         const layersContainer = document.getElementById('layers');
         layersContainer.innerHTML = '';
