@@ -344,17 +344,6 @@ body {
     border-bottom: none;
 }
 
-/* Geoportal Form */
-.geoportal-form {
-    display: flex;
-    flex-direction: column;
-    gap: var(--spacing-4);
-}
-
-.geoportal-form .btn {
-    margin-top: var(--spacing-2);
-}
-
 /* Forms */
 .form-group {
     margin-bottom: var(--spacing-4);

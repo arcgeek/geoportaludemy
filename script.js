@@ -192,34 +192,6 @@ class GeoportalLoja {
         const layersContainer = document.getElementById('layers');
         layersContainer.innerHTML = '';
         
-        console.log('Creando controles para capas:', Object.keys(this.capas));
-        
-        Object.entries(this.capas).forEach(([key, capa]) => {
-            console.log(`Creando control para capa: ${key}`, capa);
-            
-            const layerItem = document.createElement('div');
-            layerItem.className = 'layer-item';
-            layerItem.innerHTML = `
-                <input type="checkbox" id="layer-${key}" ${capa.activa ? 'checked' : ''}>
-                <span class="layer-icon" style="background-color: ${capa.color};"></span>
-                <label for="layer-${key}" class="layer-label">${capa.nombre}</label>
-            `;
-            
-            const checkbox = layerItem.querySelector('input');
-            checkbox.addEventListener('change', (e) => {
-                console.log(`Toggle capa ${key}:`, e.target.checked);
-                this.toggleCapa(key, e.target.checked);
-            });
-            
-            layersContainer.appendChild(layerItem);
-        });
-        
-        console.log('Controles de capas creados exitosamente');
-    }
-    createLayerControls() {
-        const layersContainer = document.getElementById('layers');
-        layersContainer.innerHTML = '';
-        
         Object.entries(this.capas).forEach(([key, capa]) => {
             const layerItem = document.createElement('div');
             layerItem.className = 'layer-item';
@@ -1118,10 +1090,6 @@ function cancelarReporte() {
     geoportal.cancelarReporte();
 }
 
-function enviarGeoportal() {
-    geoportal.enviarGeoportal();
-}
-
 function centrarMapa() {
     geoportal.centrarMapa();
 }
@@ -1138,22 +1106,16 @@ document.addEventListener('DOMContentLoaded', function() {
 // Manejar errores globales
 window.addEventListener('error', function(event) {
     console.error('Error global:', event.error);
-    console.error('Stack:', event.error?.stack);
-    console.error('Filename:', event.filename);
-    console.error('Line:', event.lineno);
-    
     if (geoportal) {
-        geoportal.showStatus('error', `Error: ${event.error?.message || 'Error inesperado'}`);
+        geoportal.showStatus('error', 'Ha ocurrido un error inesperado');
     }
 });
 
 // Manejar errores de promesas no capturadas
 window.addEventListener('unhandledrejection', function(event) {
     console.error('Promise rejection no manejada:', event.reason);
-    console.error('Promise:', event.promise);
-    
     if (geoportal) {
-        geoportal.showStatus('error', `Error de conexión: ${event.reason?.message || 'Error desconocido'}`);
+        geoportal.showStatus('error', 'Error de conexión');
     }
     event.preventDefault();
 });
