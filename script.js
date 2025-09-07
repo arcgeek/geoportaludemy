@@ -134,59 +134,25 @@ class GeoportalLoja {
         this.map.on('click', (e) => this.onMapClick(e));
         this.map.on('zoomend', () => this.onMapZoomEnd());
         
-        // Crear controles de basemap
-        this.createBasemapControls();
+        // Inicializar controles de basemap
+        this.initBasemapControls();
     }
     
     /**
-     * Crear controles de basemap
+     * Inicializar controles de basemap
      */
-    createBasemapControls() {
-        const basemapConfig = {
-            carto: { name: 'Carto Dark', checked: true },
-            osm: { name: 'OpenStreetMap', checked: false },
-            esri: { name: 'ESRI Satellite', checked: false }
-        };
+    initBasemapControls() {
+        // Agregar event listeners a los radio buttons existentes
+        document.getElementById('basemap-carto').addEventListener('change', (e) => {
+            if (e.target.checked) this.changeBasemap('carto');
+        });
         
-        // Agregar controles de basemap al sidebar
-        const basemapSection = document.createElement('div');
-        basemapSection.className = 'panel';
-        basemapSection.innerHTML = `
-            <div class="panel-header">
-                <i class="fas fa-globe"></i>
-                <h3>Mapas Base</h3>
-            </div>
-            <div class="panel-body">
-                <div id="basemap-controls" class="basemap-container"></div>
-            </div>
-        `;
+        document.getElementById('basemap-osm').addEventListener('change', (e) => {
+            if (e.target.checked) this.changeBasemap('osm');
+        });
         
-        // Insertar después del panel de capas
-        const layersPanel = document.querySelector('.sidebar-content .panel:nth-child(3)');
-        if (layersPanel) {
-            layersPanel.insertAdjacentElement('afterend', basemapSection);
-        } else {
-            document.querySelector('.sidebar-content').appendChild(basemapSection);
-        }
-        
-        const basemapContainer = document.getElementById('basemap-controls');
-        
-        Object.entries(basemapConfig).forEach(([key, config]) => {
-            const basemapItem = document.createElement('div');
-            basemapItem.className = 'basemap-item';
-            basemapItem.innerHTML = `
-                <input type="radio" id="basemap-${key}" name="basemap" ${config.checked ? 'checked' : ''}>
-                <label for="basemap-${key}" class="basemap-label">${config.name}</label>
-            `;
-            
-            const radio = basemapItem.querySelector('input');
-            radio.addEventListener('change', (e) => {
-                if (e.target.checked) {
-                    this.changeBasemap(key);
-                }
-            });
-            
-            basemapContainer.appendChild(basemapItem);
+        document.getElementById('basemap-esri').addEventListener('change', (e) => {
+            if (e.target.checked) this.changeBasemap('esri');
         });
     }
     
