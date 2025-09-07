@@ -203,17 +203,26 @@ class GeoportalLoja {
      * Cambiar basemap
      */
     changeBasemap(basemapKey) {
+        console.log('Intentando cambiar a basemap:', basemapKey);
+        console.log('Basemaps disponibles:', Object.keys(this.basemaps));
+        console.log('Basemap actual:', this.currentBasemap);
+        
         if (this.basemaps[basemapKey] && basemapKey !== this.currentBasemap) {
             // Remover basemap actual
             if (this.basemaps[this.currentBasemap]) {
+                console.log('Removiendo basemap actual:', this.currentBasemap);
                 this.map.removeLayer(this.basemaps[this.currentBasemap]);
             }
             
             // Agregar nuevo basemap
+            console.log('Agregando nuevo basemap:', basemapKey);
             this.basemaps[basemapKey].addTo(this.map);
             this.currentBasemap = basemapKey;
             
             this.showStatus('success', `Mapa base cambiado a ${this.getBasemapName(basemapKey)}`);
+        } else {
+            console.log('No se pudo cambiar basemap - razón:', 
+                !this.basemaps[basemapKey] ? 'No existe' : 'Ya está activo');
         }
     }
     
