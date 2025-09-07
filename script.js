@@ -117,6 +117,8 @@ class GeoportalLoja {
             attribution: '© OpenStreetMap contributors',
             maxZoom: 19
         }).addTo(this.map);
+        // Crear control de basemaps
+        this.createBasemapControl();
         
         // Agregar controles de zoom en posición personalizada
         L.control.zoom({
@@ -133,6 +135,94 @@ class GeoportalLoja {
         // Event listeners del mapa
         this.map.on('click', (e) => this.onMapClick(e));
         this.map.on('zoomend', () => this.onMapZoomEnd());
+    }
+    
+    /**
+     * Crear control de basemaps
+     */
+    createBasemapControl() {
+        const basemapControl = L.control({ position: 'topright' });
+        
+        basemapControl.onAdd = () => {
+            const div = L.DomUtil.create('div', 'basemap-control');
+            div.innerHTML = `
+                <div class="basemap-selector">
+                    <button class="basemap-toggle" title="Cambiar mapa base">
+                        <i class="fas fa-layer-group"></i>
+                    </button>
+                    <div class="basemap-options">
+                        <div class="basemap-option ${this.currentBasemap === 'OpenStreetMap' ? 'active' : ''}" data-basemap="OpenStreetMap">
+                            <div class="basemap-preview osm-preview"></div>
+                            <span>Calles</span>
+                        </div>
+                        <div class="basemap-option ${this.currentBasemap === 'Satellite' ? 'active' : ''}" data-basemap="Satellite">
+                            <div class="basemap-preview satellite-preview"></div>
+                            <span>Satélite</span>
+                        </div>
+                        <div class="basemap-option ${this.currentBasemap === 'Terrain' ? 'active' : ''}" data-basemap="Terrain">
+                            <div class="basemap-preview terrain-preview"></div>
+                            <span>Terreno</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            // Event listeners para el control
+            const toggle = div.querySelector('.basemap-toggle');
+            const options = div.querySelector('.basemap-options');
+            
+            toggle.addEventListener('click', (e) => {
+                e.stopPropagation();
+                options.classList.toggle('show');
+            });
+            
+            // Cerrar al hacer click fuera
+            document.addEventListener('click', () => {
+                options.classList.remove('show');
+            });
+            
+            // Event listeners para las opciones
+            div.querySelectorAll('.basemap-option').forEach(option => {
+                option.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const basemapName = option.dataset.basemap;
+                    this.changeBasemap(basemapName);
+                    options.classList.remove('show');
+                });
+            });
+            
+            // Prevenir propagación de eventos del mapa
+            L.DomEvent.disableClickPropagation(div);
+            L.DomEvent.disableScrollPropagation(div);
+            
+            return div;
+        };
+        
+        basemapControl.addTo(this.map);
+    }
+    
+    /**
+     * Cambiar basemap
+     */
+    changeBasemap(basemapName) {
+        if (this.currentBasemap === basemapName) return;
+        
+        // Remover basemap actual
+        this.map.removeLayer(this.baseMaps[this.currentBasemap]);
+        
+        // Agregar nuevo basemap
+        this.baseMaps[basemapName].addTo(this.map);
+        this.currentBasemap = basemapName;
+        
+        // Actualizar UI
+        document.querySelectorAll('.basemap-option').forEach(option => {
+            option.classList.remove('active');
+            if (option.dataset.basemap === basemapName) {
+                option.classList.add('active');
+            }
+        });
+        
+        this.showStatus('info', `Mapa cambiado a ${basemapName}`);
     }
     
     /**
