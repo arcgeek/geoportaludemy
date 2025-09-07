@@ -714,6 +714,27 @@ body {
     .logo h1 {
         display: none;
     }
+    
+    /* Basemap control responsive */
+    .basemap-options {
+        right: auto;
+        left: 0;
+        min-width: 160px;
+    }
+    
+    .basemap-option {
+        padding: var(--spacing-2);
+        gap: var(--spacing-2);
+    }
+    
+    .basemap-preview {
+        width: 30px;
+        height: 20px;
+    }
+    
+    .basemap-option span {
+        font-size: var(--font-size-xs);
+    }
 }
 
 /* Animaciones */
