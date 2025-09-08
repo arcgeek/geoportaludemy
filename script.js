@@ -1,1164 +1,630 @@
-/**
- * Geoportal Loja - Sistema de Información Geográfica
- * Versión Moderna 2.0
- */
+const supabaseUrl = 'https://cmcrdowiftjvdilvylcf.supabase.co';
+const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNtY3Jkb3dpZnRqdmRpbHZ5bGNmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYzMTUyODIsImV4cCI6MjA3MTg5MTI4Mn0.4v7ku49bajdVVtpz3uClR9nTpg6TP_RdGr8aqyuXmTM';
 
-class GeoportalLoja {
-    constructor() {
-        this.map = null;
-        this.layerGroups = {};
-        this.barrios = [];
-        this.modoReporte = false;
-        this.ubicacionReporte = null;
-        this.markerTemporal = null;
-        this.sidebarCollapsed = false;
-        
-        // Configuración de Supabase
-        this.supabaseUrl = 'https://cmcrdowiftjvdilvylcf.supabase.co';
-        this.supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNtY3Jkb3dpZnRqdmRpbHZ5bGNmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYzMTUyODIsImV4cCI6MjA3MTg5MTI4Mn0.4v7ku49bajdVVtpz3uClR9nTpg6TP_RdGr8aqyuXmTM';
-        
-        // Configuración de capas
-        this.capas = {
-            'bomberos_wgs84': { 
-                nombre: 'Estaciones de Bomberos', 
-                color: '#ef4444', 
-                icon: 'fas fa-fire-extinguisher',
-                activa: true,
-                tipo: 'point'
-            },
-            'policia_wgs84': { 
-                nombre: 'Estaciones de Policía', 
-                color: '#3b82f6', 
-                icon: 'fas fa-shield-alt',
-                activa: true,
-                tipo: 'point'
-            },
-            'salud_wgs84': { 
-                nombre: 'Centros de Salud', 
-                color: '#10b981', 
-                icon: 'fas fa-hospital',
-                activa: true,
-                tipo: 'point'
-            },
-            'reportes': { 
-                nombre: 'Reportes Ciudadanos', 
-                color: '#f59e0b', 
-                icon: 'fas fa-exclamation-triangle',
-                activa: true,
-                tipo: 'point'
-            },
-            'barrios': { 
-                nombre: 'Límites de Barrios', 
-                color: '#8b5cf6', 
-                icon: 'fas fa-map',
-                activa: false,
-                tipo: 'polygon'
-            },
-            'agua_potable': { 
-                nombre: 'Red de Agua Potable', 
-                color: '#06b6d4', 
-                icon: 'fas fa-tint',
-                activa: false,
-                tipo: 'polygon'
-            },
-            'alcantarillado2': { 
-                nombre: 'Red de Alcantarillado', 
-                color: '#84cc16', 
-                icon: 'fas fa-water',
-                activa: false,
-                tipo: 'line'
-            }
-        };
-        
-        this.estadisticas = {
-            'total-reportes': 0,
-            'total-barrios': 0,
-            'servicios-salud': 0,
-            'estaciones-policia': 0
-        };
-        
-        this.init();
-    }
-    
-    /**
-     * Inicialización del geoportal
-     */
-    async init() {
-        try {
-            this.showLoading(true);
-            this.initMap();
-            this.initEventListeners();
-            this.createLayerControls();
-            await this.cargarBarrios();
-            await this.cargarCapasDefecto();
-            await this.actualizarEstadisticas();
-            this.showStatus('success', 'Geoportal cargado correctamente', false);
-        } catch (error) {
-            console.error('Error inicializando geoportal:', error);
-            this.showStatus('error', 'Error al cargar el geoportal');
-        } finally {
-            this.showLoading(false);
-        }
-    }
-    
-    /**
-     * Inicialización del mapa
-     */
-    initMap() {
-        this.map = L.map('map', {
-            center: [-4.0, -79.2],
-            zoom: 13,
-            zoomControl: false,
-            attributionControl: false
-        });
-        
-        // Agregar capa base
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenStreetMap contributors',
-            maxZoom: 19
-        }).addTo(this.map);
-        
-        // Agregar controles de zoom en posición personalizada
-        L.control.zoom({
-            position: 'bottomright'
-        }).addTo(this.map);
-        
-        // Agregar control de escala
-        L.control.scale({
-            position: 'bottomleft',
-            metric: true,
-            imperial: false
-        }).addTo(this.map);
-        
-        // Event listeners del mapa
-        this.map.on('click', (e) => this.onMapClick(e));
-        this.map.on('zoomend', () => this.onMapZoomEnd());
-    }
-    
-    /**
-     * Inicialización de event listeners
-     */
-    initEventListeners() {
-        // Toggle sidebar
-        document.getElementById('toggle-sidebar').addEventListener('click', () => {
-            this.toggleSidebar();
-        });
-        
-        // Búsqueda de barrios
-        const searchInput = document.getElementById('search-input');
-        searchInput.addEventListener('input', (e) => {
-            this.buscarBarrios(e.target.value);
-        });
-        
-        // Detección de dispositivos móviles
-        if (window.innerWidth <= 768) {
-            this.sidebarCollapsed = true;
-            document.getElementById('sidebar').classList.add('collapsed');
-        }
-        
-        // Resize handler
-        window.addEventListener('resize', () => {
-            if (this.map) {
-                this.map.invalidateSize();
-            }
-        });
-    }
-    
-    /**
-     * Toggle sidebar
-     */
-    toggleSidebar() {
-        const sidebar = document.getElementById('sidebar');
-        this.sidebarCollapsed = !this.sidebarCollapsed;
-        
-        if (this.sidebarCollapsed) {
-            sidebar.classList.add('collapsed');
+const layersConfig = {
+    'barrios': { name: 'Barrios', color: '#8b5cf6', type: 'polygon', active: false },
+    'agua_potable': { name: 'Agua Potable', color: '#06b6d4', type: 'polygon', active: false },
+    'alcantarillado2': { name: 'Alcantarillado', color: '#84cc16', type: 'line', active: false },
+    'bomberos_wgs84': { name: 'Bomberos', color: '#ef4444', type: 'point', active: true },
+    'policia_wgs84': { name: 'Policía', color: '#3b82f6', type: 'point', active: true },
+    'salud_wgs84': { name: 'Salud', color: '#10b981', type: 'point', active: true },
+    'reportes': { name: 'Reportes', color: '#f59e0b', type: 'point', active: true, isRPC: true }
+};
+
+let map, layerGroups = {}, barriosIndex = [], currentBasemap = 'osm';
+let reportLocation = null, reportMarker = null, mapPickingMode = false;
+
+function init() {
+    map = L.map('map', {
+        center: [-4.0, -79.2],
+        zoom: 13,
+        zoomControl: false
+    });
+
+    const basemaps = {
+        'osm': L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { 
+            attribution: '© OpenStreetMap contributors' 
+        }),
+        'esri': L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { 
+            attribution: '© Esri, Maxar, Earthstar Geographics' 
+        }),
+        'carto': L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { 
+            attribution: '© OpenStreetMap © CartoDB' 
+        }),
+        'streets': L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', { 
+            attribution: '© Esri, HERE, Garmin' 
+        })
+    };
+
+    basemaps[currentBasemap].addTo(map);
+    L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+    map.on('click', (e) => {
+        if (mapPickingMode) {
+            setReportLocationFromMap(e.latlng);
         } else {
-            sidebar.classList.remove('collapsed');
+            calcDistances(e.latlng);
         }
-        
-        // Invalidar tamaño del mapa después de la transición
-        setTimeout(() => {
-            if (this.map) {
-                this.map.invalidateSize();
-            }
-        }, 300);
-    }
-    
-    /**
-     * Crear controles de basemaps
-     */
-    createBasemapControls() {
-        const basemapsContainer = document.getElementById('basemaps');
-        basemapsContainer.innerHTML = '';
-        
-        Object.entries(this.basemaps).forEach(([key, basemap]) => {
-            const basemapItem = document.createElement('div');
-            basemapItem.className = 'basemap-item';
-            if (key === this.currentBasemap) {
-                basemapItem.classList.add('active');
-            }
-            
-            basemapItem.innerHTML = `
-                <input type="radio" name="basemap" id="basemap-${key}" value="${key}" ${key === this.currentBasemap ? 'checked' : ''}>
-                <label for="basemap-${key}" class="basemap-label">${basemap.nombre}</label>
-            `;
-            
-            const radio = basemapItem.querySelector('input');
-            radio.addEventListener('change', (e) => {
-                if (e.target.checked) {
-                    // Actualizar clases activas
-                    document.querySelectorAll('.basemap-item').forEach(item => {
-                        item.classList.remove('active');
-                    });
-                    basemapItem.classList.add('active');
-                    
-                    // Cambiar basemap
-                    this.changeBasemap(key);
-                }
-            });
-            
-            // También permitir click en el contenedor
-            basemapItem.addEventListener('click', () => {
-                radio.checked = true;
-                radio.dispatchEvent(new Event('change'));
-            });
-            
-            basemapsContainer.appendChild(basemapItem);
-        });
-    }
-    
-    /**
-     * Crear controles de capas
-     */
-    createLayerControls() {
-        const layersContainer = document.getElementById('layers');
-        layersContainer.innerHTML = '';
-        
-        Object.entries(this.capas).forEach(([key, capa]) => {
-            const layerItem = document.createElement('div');
-            layerItem.className = 'layer-item';
-            layerItem.innerHTML = `
-                <input type="checkbox" id="layer-${key}" ${capa.activa ? 'checked' : ''}>
-                <span class="layer-icon" style="background-color: ${capa.color};"></span>
-                <label for="layer-${key}" class="layer-label">${capa.nombre}</label>
-            `;
-            
-            const checkbox = layerItem.querySelector('input');
-            checkbox.addEventListener('change', (e) => {
-                this.toggleCapa(key, e.target.checked);
-            });
-            
-            layersContainer.appendChild(layerItem);
-        });
-    }
-    
-    /**
-     * Cargar capas por defecto
-     */
-    async cargarCapasDefecto() {
-        const promesas = [];
-        
-        for (const [key, capa] of Object.entries(this.capas)) {
-            if (capa.activa) {
-                promesas.push(this.cargarCapa(key));
-            }
-        }
-        
-        await Promise.all(promesas);
-    }
-    
-    /**
-     * Toggle capa
-     */
-    async toggleCapa(key, visible) {
-        try {
-            if (visible) {
-                await this.cargarCapa(key);
-            } else {
-                this.removerCapa(key);
-            }
-        } catch (error) {
-            console.error(`Error toggling capa ${key}:`, error);
-            this.showStatus('error', `Error al cargar ${this.capas[key].nombre}`);
-        }
-    }
-    
-    /**
-     * Cargar capa específica
-     */
-    async cargarCapa(key) {
-        if (this.layerGroups[key]) {
-            this.removerCapa(key);
-        }
-        
-        this.showStatus('info', `Cargando ${this.capas[key].nombre}...`, false);
-        
-        try {
-            if (key === 'reportes') {
-                await this.cargarReportes();
-                return;
-            }
-            
-            const response = await fetch(`${this.supabaseUrl}/rest/v1/${key}?select=*&limit=1000`, {
-                headers: {
-                    'apikey': this.supabaseKey,
-                    'Authorization': `Bearer ${this.supabaseKey}`
-                }
-            });
-            
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-            
-            const data = await response.json();
-            const layerGroup = L.layerGroup();
-            let contador = 0;
-            
-            data.forEach(item => {
-                if (item.geom) {
-                    try {
-                        const geom = typeof item.geom === 'string' ? JSON.parse(item.geom) : item.geom;
-                        const layer = this.createLayerFromGeometry(geom, this.capas[key], item);
-                        if (layer) {
-                            layerGroup.addLayer(layer);
-                            contador++;
-                        }
-                    } catch (e) {
-                        console.warn(`Error procesando geometría en ${key}:`, e);
-                    }
-                }
-            });
-            
-            this.layerGroups[key] = layerGroup;
-            layerGroup.addTo(this.map);
-            
-            this.showStatus('success', `${this.capas[key].nombre}: ${contador} elementos cargados`);
-            
-        } catch (error) {
-            console.error(`Error cargando capa ${key}:`, error);
-            this.showStatus('error', `Error cargando ${this.capas[key].nombre}`);
-        }
-    }
-    
-    /**
-     * Crear layer desde geometría
-     */
-    createLayerFromGeometry(geom, capaConfig, properties) {
-        const style = {
-            color: capaConfig.color,
-            weight: 2,
-            fillOpacity: 0.3,
-            opacity: 0.8
-        };
-        
-        return L.geoJSON(geom, {
-            style: style,
-            pointToLayer: (feature, latlng) => {
-                const marker = L.circleMarker(latlng, {
-                    radius: 8,
-                    fillColor: capaConfig.color,
-                    color: '#ffffff',
-                    weight: 2,
-                    opacity: 1,
-                    fillOpacity: 0.8
-                });
-                
-                // Agregar popup con información
-                if (properties) {
-                    marker.bindPopup(this.createPopupContent(properties, capaConfig));
-                }
-                
-                return marker;
-            },
-            onEachFeature: (feature, layer) => {
-                if (properties && capaConfig.tipo !== 'point') {
-                    layer.bindPopup(this.createPopupContent(properties, capaConfig));
-                }
-            }
-        });
-    }
-    
-    /**
-     * Crear contenido del popup
-     */
-    createPopupContent(properties, capaConfig) {
-        let content = `<div style="min-width: 200px;">`;
-        content += `<h4 style="margin: 0 0 10px 0; color: ${capaConfig.color};">`;
-        content += `<i class="${capaConfig.icon}"></i> ${capaConfig.nombre}</h4>`;
-        
-        // Mostrar propiedades relevantes
-        const propiedadesRelevantes = this.getRelevantProperties(properties);
-        
-        propiedadesRelevantes.forEach(([key, value]) => {
-            if (value && value !== 'null' && value !== '') {
-                content += `<p style="margin: 5px 0;"><strong>${key}:</strong> ${value}</p>`;
-            }
-        });
-        
-        content += `</div>`;
-        return content;
-    }
-    
-    /**
-     * Obtener propiedades relevantes para mostrar
-     */
-    getRelevantProperties(properties) {
-        const relevantKeys = {
-            'nombre': 'Nombre',
-            'parroquia': 'Parroquia',
-            'categoria': 'Categoría',
-            'tipo': 'Tipo',
-            'BARRIO': 'Barrio',
-            'PARROQUIAS': 'Parroquia',
-            'sector': 'Sector',
-            'zona': 'Zona',
-            'tipo_requerimiento': 'Tipo de Reporte',
-            'comentarios': 'Comentarios',
-            'estado': 'Estado',
-            'fecha_creacion': 'Fecha'
-        };
-        
-        return Object.entries(properties)
-            .filter(([key, value]) => relevantKeys[key] && value)
-            .map(([key, value]) => [relevantKeys[key], value])
-            .slice(0, 5); // Limitar a 5 propiedades
-    }
-    
-    /**
-     * Remover capa
-     */
-    removerCapa(key) {
-        if (this.layerGroups[key]) {
-            this.map.removeLayer(this.layerGroups[key]);
-            delete this.layerGroups[key];
-        }
-    }
-    
-    /**
-     * Cargar reportes
-     */
-    async cargarReportes() {
-        try {
-            const response = await fetch(`${this.supabaseUrl}/rest/v1/rpc/obtener_reportes`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'apikey': this.supabaseKey,
-                    'Authorization': `Bearer ${this.supabaseKey}`
-                },
-                body: JSON.stringify({})
-            });
-            
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-            
-            const data = await response.json();
-            const layerGroup = L.layerGroup();
-            
-            if (data.features) {
-                data.features.forEach(feature => {
-                    const props = feature.properties;
-                    const coords = feature.geometry.coordinates;
-                    
-                    const marker = L.circleMarker([coords[1], coords[0]], {
-                        radius: 10,
-                        fillColor: this.getReportColor(props.tipo_requerimiento),
-                        color: '#ffffff',
-                        weight: 2,
-                        opacity: 1,
-                        fillOpacity: 0.8
-                    });
-                    
-                    const popupContent = `
-                        <div style="min-width: 250px;">
-                            <h4 style="margin: 0 0 10px 0; color: #f59e0b;">
-                                <i class="fas fa-exclamation-triangle"></i> ${props.tipo_requerimiento}
-                            </h4>
-                            <p><strong>Reportado por:</strong> ${props.nombre}</p>
-                            <p><strong>Descripción:</strong> ${props.comentarios}</p>
-                            <p><strong>Estado:</strong> <span style="color: ${this.getStatusColor(props.estado)};">${props.estado}</span></p>
-                            <p><strong>Fecha:</strong> ${new Date(props.fecha_creacion).toLocaleDateString('es-ES')}</p>
-                        </div>
-                    `;
-                    
-                    marker.bindPopup(popupContent);
-                    layerGroup.addLayer(marker);
-                });
-            }
-            
-            this.layerGroups['reportes'] = layerGroup;
-            layerGroup.addTo(this.map);
-            
-            const count = data.features ? data.features.length : 0;
-            this.showStatus('success', `Reportes: ${count} elementos cargados`);
-            
-        } catch (error) {
-            console.error('Error cargando reportes:', error);
-            this.showStatus('error', 'Error cargando reportes');
-        }
-    }
-    
-    /**
-     * Obtener color del reporte según tipo
-     */
-    getReportColor(tipo) {
-        const colores = {
-            'Bache': '#ef4444',
-            'Alumbrado': '#f59e0b',
-            'Agua': '#06b6d4',
-            'Basura': '#84cc16',
-            'Alcantarillado': '#8b5cf6',
-            'Seguridad': '#ef4444',
-            'Otro': '#6b7280'
-        };
-        return colores[tipo] || '#6b7280';
-    }
-    
-    /**
-     * Obtener color del estado
-     */
-    getStatusColor(estado) {
-        const colores = {
-            'Pendiente': '#f59e0b',
-            'En Proceso': '#06b6d4',
-            'Resuelto': '#10b981',
-            'Rechazado': '#ef4444'
-        };
-        return colores[estado] || '#6b7280';
-    }
-    
-    /**
-     * Cargar lista de barrios
-     */
-    async cargarBarrios() {
-        try {
-            const response = await fetch(`${this.supabaseUrl}/rest/v1/barrios?select=BARRIO`, {
-                headers: {
-                    'apikey': this.supabaseKey,
-                    'Authorization': `Bearer ${this.supabaseKey}`
-                }
-            });
-            
-            if (response.ok) {
-                const data = await response.json();
-                this.barrios = [...new Set(data.map(item => item.BARRIO).filter(b => b))].sort();
-            }
-        } catch (error) {
-            console.error('Error cargando barrios:', error);
-        }
-    }
-    
-    /**
-     * Buscar barrios
-     */
-    buscarBarrios(query) {
-        const resultsDiv = document.getElementById('search-results');
-        
-        if (query.length < 2) {
-            resultsDiv.innerHTML = '';
-            return;
-        }
-        
-        const matches = this.barrios
-            .filter(b => b.toLowerCase().includes(query.toLowerCase()))
-            .slice(0, 8);
-            
-        if (matches.length === 0) {
-            resultsDiv.innerHTML = '<div class="search-result-item">No se encontraron barrios</div>';
-            return;
-        }
-        
-        resultsDiv.innerHTML = matches
-            .map(barrio => `<div class="search-result-item" onclick="geoportal.seleccionarBarrio('${barrio}')">${barrio}</div>`)
-            .join('');
-    }
-    
-    /**
-     * Seleccionar barrio
-     */
-    async seleccionarBarrio(nombre) {
-        document.getElementById('search-input').value = nombre;
-        document.getElementById('search-results').innerHTML = '';
-        
-        this.showStatus('info', 'Analizando barrio...', false);
-        
-        try {
-            const response = await fetch(`${this.supabaseUrl}/rest/v1/rpc/analizar_barrio_completo`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'apikey': this.supabaseKey,
-                    'Authorization': `Bearer ${this.supabaseKey}`
-                },
-                body: JSON.stringify({ nombre_barrio: nombre })
-            });
-            
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-            
-            const resultado = await response.json();
-            
-            if (!resultado.error) {
-                this.mostrarInfoBarrio(resultado);
-                this.showStatus('success', 'Análisis completado');
-            } else {
-                this.showStatus('error', 'Error en el análisis del barrio');
-            }
-            
-        } catch (error) {
-            console.error('Error analizando barrio:', error);
-            this.showStatus('error', 'Error analizando barrio');
-        }
-    }
-    
-    /**
-     * Mostrar información del barrio
-     */
-    mostrarInfoBarrio(info) {
-        const barrioInfoDiv = document.getElementById('barrio-info');
-        
-        barrioInfoDiv.innerHTML = `
-            <h4>${info.barrio}</h4>
-            <div class="barrio-info-item">
-                <span class="barrio-info-label">
-                    <i class="fas fa-water"></i> Alcantarillado
-                </span>
-                <span class="barrio-info-value">${info.longitud_alcantarillado || 0} m</span>
+    });
+
+    buildBasemapUI(basemaps);
+    buildLayersUI();
+    loadDefaultLayers();
+    preloadBarrios();
+    setupEventListeners();
+
+    setStatus('success', 'Geoportal cargado correctamente');
+}
+
+function setupEventListeners() {
+    document.getElementById('search-input').addEventListener('input', onSearch);
+    document.getElementById('get-current-location').addEventListener('click', getCurrentLocationForReport);
+    document.getElementById('pick-on-map').addEventListener('click', startMapPicking);
+    document.getElementById('set-manual-coords').addEventListener('click', setManualCoords);
+    document.getElementById('report-send').addEventListener('click', sendReport);
+}
+
+function buildBasemapUI(basemaps) {
+    const container = document.getElementById('basemaps');
+    const basemapData = [
+        { id: 'osm', name: 'OpenStreetMap', icon: 'fas fa-map', layer: basemaps.osm },
+        { id: 'esri', name: 'Satélite', icon: 'fas fa-satellite', layer: basemaps.esri },
+        { id: 'carto', name: 'Claro', icon: 'fas fa-map-marked', layer: basemaps.carto },
+        { id: 'streets', name: 'Calles', icon: 'fas fa-road', layer: basemaps.streets }
+    ];
+
+    basemapData.forEach(bm => {
+        const button = document.createElement('button');
+        button.className = `basemap-btn ${bm.id === currentBasemap ? 'active' : ''}`;
+        button.innerHTML = `<i class="${bm.icon}"></i><span>${bm.name}</span>`;
+        button.addEventListener('click', () => changeBasemap(bm.id, bm.layer, basemaps));
+        container.appendChild(button);
+    });
+}
+
+function changeBasemap(id, layer, basemaps) {
+    if (id === currentBasemap) return;
+
+    map.removeLayer(basemaps[currentBasemap]);
+    layer.addTo(map);
+    currentBasemap = id;
+
+    document.querySelectorAll('.basemap-btn').forEach(btn => btn.classList.remove('active'));
+    document.querySelector(`.basemap-btn:nth-child(${Object.keys(basemaps).indexOf(id) + 1})`).classList.add('active');
+
+    setStatus('info', `Cambiado a: ${document.querySelector(`.basemap-btn:nth-child(${Object.keys(basemaps).indexOf(id) + 1}) span`).textContent}`);
+}
+
+function buildLayersUI() {
+    const container = document.getElementById('layers');
+    Object.entries(layersConfig).forEach(([key, cfg]) => {
+        const item = document.createElement('div');
+        item.className = 'layer-item';
+        item.innerHTML = `
+            <div class="layer-left">
+                <span class="layer-badge" style="background-color: ${cfg.color};"></span>
+                <span class="layer-label">${cfg.name}</span>
             </div>
-            <div class="barrio-info-item">
-                <span class="barrio-info-label">
-                    <i class="fas fa-fire-extinguisher"></i> Bomberos
-                </span>
-                <span class="barrio-info-value">${info.bomberos || 0}</span>
-            </div>
-            <div class="barrio-info-item">
-                <span class="barrio-info-label">
-                    <i class="fas fa-shield-alt"></i> Policía
-                </span>
-                <span class="barrio-info-value">${info.policia || 0}</span>
-            </div>
-            <div class="barrio-info-item">
-                <span class="barrio-info-label">
-                    <i class="fas fa-hospital"></i> Salud
-                </span>
-                <span class="barrio-info-value">${info.salud || 0}</span>
-            </div>
+            <label class="layer-switch">
+                <input type="checkbox" ${cfg.active ? 'checked' : ''}>
+                <span class="layer-slider"></span>
+            </label>
         `;
         
-        barrioInfoDiv.style.display = 'block';
-    }
-    
-    /**
-     * Event handler para click en el mapa
-     */
-    onMapClick(e) {
-        if (this.modoReporte) {
-            this.seleccionarUbicacion(e.latlng);
-        } else {
-            this.calcularDistancias(e.latlng);
+        const checkbox = item.querySelector('input');
+        checkbox.addEventListener('change', (e) => toggleLayer(key, e.target.checked));
+        container.appendChild(item);
+    });
+}
+
+async function loadDefaultLayers() {
+    for (const [key, cfg] of Object.entries(layersConfig)) {
+        if (cfg.active) {
+            await loadLayer(key);
         }
     }
+}
+
+async function toggleLayer(key, visible) {
+    if (visible) {
+        await loadLayer(key);
+    } else {
+        if (layerGroups[key]) {
+            map.removeLayer(layerGroups[key]);
+            delete layerGroups[key];
+        }
+    }
+}
+
+async function loadLayer(key) {
+    setStatus('warning', `Cargando ${layersConfig[key].name}...`);
     
-    /**
-     * Event handler para zoom del mapa
-     */
-    onMapZoomEnd() {
-        // Ajustar el tamaño de los marcadores según el zoom
-        const zoom = this.map.getZoom();
-        const radius = Math.max(5, Math.min(15, zoom - 8));
-        
-        Object.values(this.layerGroups).forEach(layerGroup => {
-            layerGroup.eachLayer(layer => {
-                if (layer instanceof L.CircleMarker) {
-                    layer.setRadius(radius);
-                }
-            });
+    try {
+        if (layersConfig[key].isRPC) {
+            if (key === 'reportes') {
+                await loadReportes();
+            }
+            return;
+        }
+
+        const response = await fetch(`${supabaseUrl}/rest/v1/${key}?select=*&limit=2000`, {
+            headers: {
+                'apikey': supabaseKey,
+                'Authorization': `Bearer ${supabaseKey}`
+            }
         });
-    }
-    
-    /**
-     * Obtener ubicación del usuario
-     */
-    obtenerUbicacion() {
-        if (!navigator.geolocation) {
-            this.showStatus('error', 'Geolocalización no disponible en este navegador');
-            return;
-        }
+
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
         
-        this.showStatus('info', 'Obteniendo ubicación...', false);
+        const data = await response.json();
+        const group = L.layerGroup();
         
-        const options = {
-            enableHighAccuracy: true,
-            timeout: 10000,
-            maximumAge: 300000 // 5 minutos
-        };
-        
-        navigator.geolocation.getCurrentPosition(
-            (position) => {
-                this.ubicacionReporte = {
-                    lat: position.coords.latitude,
-                    lng: position.coords.longitude
-                };
-                
-                this.agregarMarkerTemporal(this.ubicacionReporte);
-                this.map.setView([this.ubicacionReporte.lat, this.ubicacionReporte.lng], 16);
-                this.mostrarFormularioReporte();
-                this.showStatus('success', 'Ubicación obtenida correctamente');
-            },
-            (error) => {
-                let mensaje = 'Error obteniendo ubicación';
-                switch (error.code) {
-                    case error.PERMISSION_DENIED:
-                        mensaje = 'Permiso de ubicación denegado';
-                        break;
-                    case error.POSITION_UNAVAILABLE:
-                        mensaje = 'Ubicación no disponible';
-                        break;
-                    case error.TIMEOUT:
-                        mensaje = 'Tiempo de espera agotado';
-                        break;
-                }
-                this.showStatus('error', mensaje);
-            },
-            options
-        );
-    }
-    
-    /**
-     * Activar modo de selección en mapa
-     */
-    activarModoMapa() {
-        this.modoReporte = true;
-        this.map.getContainer().style.cursor = 'crosshair';
-        this.showStatus('info', 'Haga clic en el mapa para seleccionar ubicación', false);
-    }
-    
-    /**
-     * Seleccionar ubicación en el mapa
-     */
-    seleccionarUbicacion(latlng) {
-        if (!this.modoReporte) return;
-        
-        this.ubicacionReporte = latlng;
-        this.agregarMarkerTemporal(latlng);
-        this.mostrarFormularioReporte();
-        this.showStatus('success', 'Ubicación seleccionada');
-    }
-    
-    /**
-     * Agregar marker temporal
-     */
-    agregarMarkerTemporal(latlng) {
-        if (this.markerTemporal) {
-            this.map.removeLayer(this.markerTemporal);
-        }
-        
-        this.markerTemporal = L.marker(latlng, {
-            icon: L.divIcon({
-                className: 'custom-marker',
-                html: '<i class="fas fa-map-pin" style="color: #ef4444; font-size: 24px;"></i>',
-                iconSize: [30, 30],
-                iconAnchor: [15, 30]
-            })
-        }).addTo(this.map);
-    }
-    
-    /**
-     * Mostrar formulario de reporte
-     */
-    mostrarFormularioReporte() {
-        this.modoReporte = false;
-        this.map.getContainer().style.cursor = '';
-        
-        const formReporte = document.getElementById('form-reporte');
-        const coordsDiv = document.getElementById('coords');
-        
-        formReporte.style.display = 'block';
-        coordsDiv.textContent = `${this.ubicacionReporte.lat.toFixed(6)}, ${this.ubicacionReporte.lng.toFixed(6)}`;
-        
-        // Scroll al formulario en dispositivos móviles
-        if (window.innerWidth <= 768) {
-            formReporte.scrollIntoView({ behavior: 'smooth' });
-        }
-    }
-    
-    /**
-     * Enviar reporte
-     */
-    async enviarReporte() {
-        if (!this.ubicacionReporte) {
-            this.showStatus('error', 'Debe seleccionar una ubicación');
-            return;
-        }
-        
-        const nombre = document.getElementById('nombre').value.trim();
-        const tipo = document.getElementById('tipo').value;
-        const comentarios = document.getElementById('comentarios').value.trim();
-        
-        // Validaciones
-        if (!nombre) {
-            this.showStatus('error', 'El nombre es obligatorio');
-            document.getElementById('nombre').focus();
-            return;
-        }
-        
-        if (!tipo) {
-            this.showStatus('error', 'Debe seleccionar un tipo de reporte');
-            document.getElementById('tipo').focus();
-            return;
-        }
-        
-        if (!comentarios) {
-            this.showStatus('error', 'La descripción es obligatoria');
-            document.getElementById('comentarios').focus();
-            return;
-        }
-        
-        if (comentarios.length < 10) {
-            this.showStatus('error', 'La descripción debe tener al menos 10 caracteres');
-            document.getElementById('comentarios').focus();
-            return;
-        }
-        
-        this.showStatus('info', 'Enviando reporte...', false);
-        
-        try {
-            const response = await fetch(`${this.supabaseUrl}/rest/v1/rpc/insertar_reporte`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'apikey': this.supabaseKey,
-                    'Authorization': `Bearer ${this.supabaseKey}`
-                },
-                body: JSON.stringify({
-                    p_nombre: nombre,
-                    p_tipo_requerimiento: tipo,
-                    p_comentarios: comentarios,
-                    p_lat: this.ubicacionReporte.lat,
-                    p_lng: this.ubicacionReporte.lng
+        data.forEach(item => {
+            if (!item.geom) return;
+            
+            const geom = typeof item.geom === 'string' ? safeParseJSON(item.geom) : item.geom;
+            if (!geom) return;
+            
+            const style = featureStyle(key);
+            const layer = L.geoJSON(geom, {
+                style: style,
+                pointToLayer: (feature, latlng) => L.circleMarker(latlng, {
+                    ...style,
+                    radius: 6,
+                    weight: 2,
+                    fillOpacity: 0.7
                 })
             });
             
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
+            if (key === 'barrios' && item.BARRIO) {
+                layer.bindTooltip(item.BARRIO, {
+                    permanent: false,
+                    direction: 'top',
+                    offset: [0, -6]
+                });
             }
             
-            const resultado = await response.json();
-            
-            if (resultado.success !== false) {
-                this.showStatus('success', 'Reporte enviado correctamente');
-                this.cancelarReporte();
-                
-                // Recargar capa de reportes si está activa
-                if (this.layerGroups['reportes']) {
-                    await this.cargarReportes();
-                }
-                
-                // Actualizar estadísticas
-                await this.actualizarEstadisticas();
-            } else {
-                this.showStatus('error', 'Error al enviar el reporte');
-            }
-            
-        } catch (error) {
-            console.error('Error enviando reporte:', error);
-            this.showStatus('error', 'Error de conexión al enviar el reporte');
-        }
-    }
-    
-    /**
-     * Cancelar reporte
-     */
-    cancelarReporte() {
-        this.modoReporte = false;
-        this.ubicacionReporte = null;
-        
-        if (this.markerTemporal) {
-            this.map.removeLayer(this.markerTemporal);
-            this.markerTemporal = null;
-        }
-        
-        // Limpiar formulario
-        const formReporte = document.getElementById('form-reporte');
-        formReporte.style.display = 'none';
-        
-        document.getElementById('nombre').value = '';
-        document.getElementById('tipo').value = '';
-        document.getElementById('comentarios').value = '';
-        document.getElementById('coords').textContent = 'Coordenadas no seleccionadas';
-        
-        this.map.getContainer().style.cursor = '';
-        this.showStatus('info', 'Reporte cancelado');
-    }
-    
-    /**
-     * Calcular distancias a servicios
-     */
-    async calcularDistancias(latlng) {
-        this.showStatus('info', 'Calculando distancias a servicios...', false);
-        
-        try {
-            const response = await fetch(`${this.supabaseUrl}/rest/v1/rpc/calcular_distancias`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'apikey': this.supabaseKey,
-                    'Authorization': `Bearer ${this.supabaseKey}`
-                },
-                body: JSON.stringify({ 
-                    lat_punto: latlng.lat, 
-                    lng_punto: latlng.lng 
-                })
+            layer.on('click', () => {
+                const props = Object.assign({}, item);
+                delete props.geom;
+                showPopup(layer, props);
             });
             
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
+            group.addLayer(layer);
+        });
+        
+        layerGroups[key] = group;
+        group.addTo(map);
+        setStatus('success', `${layersConfig[key].name}: ${data.length} elementos`);
+        
+    } catch (error) {
+        console.error(error);
+        setStatus('error', `Error cargando ${layersConfig[key].name}`);
+    }
+}
+
+function featureStyle(key) {
+    const color = layersConfig[key].color;
+    const type = layersConfig[key].type;
+    
+    if (type === 'line') {
+        return { color: color, weight: 2.5, opacity: 0.9 };
+    }
+    if (type === 'point') {
+        return { color: color, weight: 2, opacity: 1, fillColor: color, fillOpacity: 0.8 };
+    }
+    return { color: color, weight: 2, opacity: 0.9, fillColor: color, fillOpacity: 0.15 };
+}
+
+function showPopup(layer, props) {
+    const html = `
+        <div style="min-width: 220px;">
+            ${Object.entries(props).map(([k, v]) => `<div><strong>${k}:</strong> ${v}</div>`).join('')}
+        </div>
+    `;
+    
+    try {
+        const center = layer.getBounds ? layer.getBounds().getCenter() : null;
+        if (center) {
+            L.popup().setLatLng(center).setContent(html).openOn(map);
+        }
+    } catch (e) {}
+}
+
+async function loadReportes() {
+    try {
+        const response = await fetch(`${supabaseUrl}/rest/v1/rpc/obtener_reportes`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'apikey': supabaseKey,
+                'Authorization': `Bearer ${supabaseKey}`
+            },
+            body: JSON.stringify({})
+        });
+        
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        
+        const data = await response.json();
+        const group = L.layerGroup();
+        
+        (data.features || []).forEach(feature => {
+            if (!feature.geometry || feature.geometry.type !== 'Point') return;
             
-            const resultado = await response.json();
+            const [x, y] = feature.geometry.coordinates;
+            const marker = L.circleMarker([y, x], {
+                ...featureStyle('reportes'),
+                radius: 7
+            });
             
-            // Crear marker con información de distancias
-            const marker = L.marker(latlng, {
-                icon: L.divIcon({
-                    className: 'distance-marker',
-                    html: '<i class="fas fa-crosshairs" style="color: #2563eb; font-size: 20px;"></i>',
-                    iconSize: [25, 25],
-                    iconAnchor: [12, 12]
-                })
-            }).addTo(this.map);
-            
-            const popupContent = `
-                <div style="min-width: 200px;">
-                    <h4 style="margin: 0 0 15px 0; color: #2563eb;">
-                        <i class="fas fa-map-marker-alt"></i> Distancias a Servicios
-                    </h4>
-                    <div style="display: grid; gap: 8px;">
-                        <div style="display: flex; justify-content: space-between; align-items: center;">
-                            <span><i class="fas fa-fire-extinguisher" style="color: #ef4444; width: 20px;"></i> Bomberos</span>
-                            <strong>${Math.round(resultado.bomberos || 0)} m</strong>
-                        </div>
-                        <div style="display: flex; justify-content: space-between; align-items: center;">
-                            <span><i class="fas fa-shield-alt" style="color: #3b82f6; width: 20px;"></i> Policía</span>
-                            <strong>${Math.round(resultado.policia || 0)} m</strong>
-                        </div>
-                        <div style="display: flex; justify-content: space-between; align-items: center;">
-                            <span><i class="fas fa-hospital" style="color: #10b981; width: 20px;"></i> Salud</span>
-                            <strong>${Math.round(resultado.salud || 0)} m</strong>
-                        </div>
-                    </div>
-                    <p style="margin: 10px 0 0 0; font-size: 0.8em; color: #666;">
-                        Coordenadas: ${latlng.lat.toFixed(6)}, ${latlng.lng.toFixed(6)}
-                    </p>
-                </div>
+            const props = feature.properties || {};
+            const content = `
+                <strong>${props.tipo_requerimiento || 'Reporte'}</strong><br>
+                Por: ${props.nombre || '—'}<br>
+                ${props.comentarios || ''}<br>
+                Estado: ${props.estado || '—'}<br>
+                ${props.fecha_creacion ? new Date(props.fecha_creacion).toLocaleString() : ''}
             `;
             
-            marker.bindPopup(popupContent).openPopup();
-            
-            // Remover marker después de 30 segundos
-            setTimeout(() => {
-                this.map.removeLayer(marker);
-            }, 30000);
-            
-            this.showStatus('success', 'Distancias calculadas');
-            
-        } catch (error) {
-            console.error('Error calculando distancias:', error);
-            this.showStatus('error', 'Error calculando distancias');
-        }
+            marker.bindPopup(content);
+            group.addLayer(marker);
+        });
+        
+        layerGroups['reportes'] = group;
+        group.addTo(map);
+        setStatus('success', `Reportes: ${(data.features || []).length} elementos`);
+        
+    } catch (error) {
+        console.error(error);
+        setStatus('error', 'Error cargando reportes');
     }
-    
-    /**
-     * Actualizar estadísticas
-     */
-    async actualizarEstadisticas() {
-        try {
-            // Obtener estadísticas de cada tabla
-            const estadisticas = await Promise.allSettled([
-                this.obtenerConteo('reportes'),
-                this.obtenerConteo('barrios'),
-                this.obtenerConteo('salud_wgs84'),
-                this.obtenerConteo('policia_wgs84')
-            ]);
-            
-            // Actualizar DOM
-            document.getElementById('total-reportes').textContent = estadisticas[0].value || 0;
-            document.getElementById('total-barrios').textContent = estadisticas[1].value || 0;
-            document.getElementById('servicios-salud').textContent = estadisticas[2].value || 0;
-            document.getElementById('estaciones-policia').textContent = estadisticas[3].value || 0;
-            
-        } catch (error) {
-            console.error('Error actualizando estadísticas:', error);
-        }
+}
+
+async function calcDistances(latlng) {
+    try {
+        setStatus('warning', 'Calculando distancias...');
+        
+        const response = await fetch(`${supabaseUrl}/rest/v1/rpc/calcular_distancias`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'apikey': supabaseKey,
+                'Authorization': `Bearer ${supabaseKey}`
+            },
+            body: JSON.stringify({
+                lat_punto: latlng.lat,
+                lng_punto: latlng.lng
+            })
+        });
+        
+        const result = await response.json();
+        const marker = L.marker(latlng).addTo(map);
+        
+        marker.bindPopup(`
+            <strong>Distancias a Servicios</strong><br>
+            Bomberos: ${formatMeters(result.bomberos)}<br>
+            Policía: ${formatMeters(result.policia)}<br>
+            Salud: ${formatMeters(result.salud)}
+        `).openPopup();
+        
+        setStatus('success', 'Distancias calculadas');
+        
+    } catch (error) {
+        setStatus('error', 'Error calculando distancias');
     }
-    
-    /**
-     * Obtener conteo de registros
-     */
-    async obtenerConteo(tabla) {
-        try {
-            let url = `${this.supabaseUrl}/rest/v1/${tabla}?select=count`;
-            
-            // Para reportes usar función específica
-            if (tabla === 'reportes') {
-                const response = await fetch(`${this.supabaseUrl}/rest/v1/rpc/obtener_reportes`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'apikey': this.supabaseKey,
-                        'Authorization': `Bearer ${this.supabaseKey}`
-                    },
-                    body: JSON.stringify({})
-                });
-                
-                if (response.ok) {
-                    const data = await response.json();
-                    return data.features ? data.features.length : 0;
-                }
-                return 0;
+}
+
+function formatMeters(value) {
+    if (value == null) return '—';
+    const num = Number(value);
+    if (isNaN(num)) return String(value);
+    return `${num.toFixed(0)} m`;
+}
+
+async function preloadBarrios() {
+    try {
+        const response = await fetch(`${supabaseUrl}/rest/v1/barrios?select=BARRIO`, {
+            headers: {
+                'apikey': supabaseKey,
+                'Authorization': `Bearer ${supabaseKey}`
             }
-            
-            const response = await fetch(url, {
+        });
+        
+        const data = await response.json();
+        barriosIndex = [...new Set(data.map(item => item.BARRIO).filter(Boolean))].sort();
+        
+    } catch (error) {
+        console.error('Error cargando barrios:', error);
+    }
+}
+
+function onSearch(e) {
+    const query = e.target.value.trim().toLowerCase();
+    const resultsDiv = document.getElementById('search-results');
+    
+    if (query.length < 2) {
+        resultsDiv.classList.remove('show');
+        resultsDiv.innerHTML = '';
+        return;
+    }
+    
+    const matches = barriosIndex.filter(barrio => 
+        barrio.toLowerCase().includes(query)
+    ).slice(0, 7);
+    
+    resultsDiv.innerHTML = matches.map(barrio => 
+        `<div data-name="${barrio}">${barrio}</div>`
+    ).join('');
+    
+    resultsDiv.classList.add('show');
+    
+    resultsDiv.querySelectorAll('div').forEach(div => {
+        div.addEventListener('click', () => selectBarrio(div.dataset.name));
+    });
+}
+
+async function selectBarrio(name) {
+    document.getElementById('search-input').value = name;
+    const resultsDiv = document.getElementById('search-results');
+    resultsDiv.classList.remove('show');
+    resultsDiv.innerHTML = '';
+    
+    setStatus('warning', 'Localizando barrio...');
+    
+    try {
+        const url = `${supabaseUrl}/rest/v1/barrios?select=geom,BARRIO&BARRIO=eq.${encodeURIComponent(name)}&limit=1`;
+        const response = await fetch(url, {
+            headers: {
+                'apikey': supabaseKey,
+                'Authorization': `Bearer ${supabaseKey}`
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (data.length && data[0].geom) {
+            const geom = typeof data[0].geom === 'string' ? safeParseJSON(data[0].geom) : data[0].geom;
+            if (geom) {
+                const layer = L.geoJSON(geom);
+                map.fitBounds(layer.getBounds(), { padding: [20, 20] });
+            }
+        }
+        
+        try {
+            const analysisResponse = await fetch(`${supabaseUrl}/rest/v1/rpc/analizar_barrio_completo`, {
+                method: 'POST',
                 headers: {
-                    'apikey': this.supabaseKey,
-                    'Authorization': `Bearer ${this.supabaseKey}`,
-                    'Prefer': 'count=exact'
-                }
+                    'Content-Type': 'application/json',
+                    'apikey': supabaseKey,
+                    'Authorization': `Bearer ${supabaseKey}`
+                },
+                body: JSON.stringify({ nombre_barrio: name })
             });
             
-            if (response.ok) {
-                const countHeader = response.headers.get('Content-Range');
-                if (countHeader) {
-                    const match = countHeader.match(/\/(\d+)$/);
-                    return match ? parseInt(match[1]) : 0;
-                }
+            const analysisResult = await analysisResponse.json();
+            if (!analysisResult.error) {
+                setStatus('success', 
+                    `Alcantarillado: ${analysisResult.longitud_alcantarillado} m · ` +
+                    `Bomberos: ${analysisResult.bomberos} · ` +
+                    `Policía: ${analysisResult.policia} · ` +
+                    `Salud: ${analysisResult.salud}`
+                );
             }
+        } catch (e) {}
+        
+    } catch (error) {
+        setStatus('error', 'No se pudo localizar el barrio');
+    }
+}
+
+function clearReportLocation() {
+    reportLocation = null;
+    if (reportMarker) {
+        map.removeLayer(reportMarker);
+        reportMarker = null;
+    }
+    updateCoordsDisplay();
+}
+
+function updateCoordsDisplay() {
+    const coordsText = document.getElementById('coords-text');
+    const coordsDisplay = document.querySelector('.coords-display');
+    
+    if (reportLocation) {
+        coordsText.textContent = `${reportLocation.lat.toFixed(6)}, ${reportLocation.lng.toFixed(6)}`;
+        coordsDisplay.classList.add('selected');
+    } else {
+        coordsText.textContent = 'No seleccionada';
+        coordsDisplay.classList.remove('selected');
+    }
+}
+
+function getCurrentLocationForReport() {
+    if (!navigator.geolocation) {
+        setStatus('error', 'Geolocalización no disponible');
+        return;
+    }
+    
+    setStatus('warning', 'Obteniendo ubicación actual...');
+    
+    navigator.geolocation.getCurrentPosition(
+        (position) => {
+            const lat = position.coords.latitude;
+            const lng = position.coords.longitude;
+            setReportLocation({ lat, lng });
+            map.setView([lat, lng], 16);
+            setStatus('success', 'Ubicación actual obtenida');
+        },
+        (error) => {
+            setStatus('error', 'No se pudo obtener la ubicación actual');
+        },
+        {
+            enableHighAccuracy: true,
+            timeout: 10000,
+            maximumAge: 60000
+        }
+    );
+}
+
+function startMapPicking() {
+    mapPickingMode = true;
+    map.getContainer().classList.add('map-picking');
+    setStatus('warning', 'Haz clic en el mapa para seleccionar la ubicación del reporte');
+}
+
+function stopMapPicking() {
+    mapPickingMode = false;
+    map.getContainer().classList.remove('map-picking');
+}
+
+function setReportLocationFromMap(latlng) {
+    stopMapPicking();
+    setReportLocation(latlng);
+    setStatus('success', 'Ubicación seleccionada en el mapa');
+}
+
+function setReportLocation(latlng) {
+    reportLocation = latlng;
+    
+    if (reportMarker) {
+        map.removeLayer(reportMarker);
+    }
+    
+    reportMarker = L.marker([latlng.lat, latlng.lng], {
+        icon: L.icon({
+            iconUrl: 'data:image/svg+xml;base64,' + btoa(`
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#ef4444">
+                    <path d="M12 0C7.58 0 4 3.58 4 8c0 5.5 8 16 8 16s8-10.5 8-16c0-4.42-3.58-8-8-8zm0 11c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3z"/>
+                </svg>
+            `),
+            iconSize: [30, 30],
+            iconAnchor: [15, 30],
+            popupAnchor: [0, -30]
+        })
+    }).addTo(map);
+    
+    reportMarker.bindTooltip('Ubicación del reporte', { permanent: false }).openTooltip();
+    updateCoordsDisplay();
+}
+
+function setManualCoords() {
+    const latInput = document.getElementById('lat-input');
+    const lngInput = document.getElementById('lng-input');
+    
+    const lat = parseFloat(latInput.value);
+    const lng = parseFloat(lngInput.value);
+    
+    if (isNaN(lat) || isNaN(lng)) {
+        setStatus('error', 'Ingresa coordenadas válidas');
+        return;
+    }
+    
+    if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+        setStatus('error', 'Coordenadas fuera de rango válido');
+        return;
+    }
+    
+    setReportLocation({ lat, lng });
+    map.setView([lat, lng], 16);
+    setStatus('success', 'Coordenadas fijadas manualmente');
+}
+
+function resetReportForm() {
+    document.getElementById('nombre').value = '';
+    document.getElementById('tipo').value = '';
+    document.getElementById('comentarios').value = '';
+    document.getElementById('lat-input').value = '';
+    document.getElementById('lng-input').value = '';
+    clearReportLocation();
+    stopMapPicking();
+}
+
+async function sendReport() {
+    const nombre = document.getElementById('nombre').value.trim();
+    const tipo = document.getElementById('tipo').value;
+    const comentarios = document.getElementById('comentarios').value.trim();
+    
+    if (!nombre || !tipo || !comentarios) {
+        setStatus('error', 'Completa todos los campos obligatorios');
+        return;
+    }
+    
+    if (!reportLocation) {
+        setStatus('error', 'Selecciona una ubicación para el reporte');
+        return;
+    }
+    
+    const sendButton = document.getElementById('report-send');
+    sendButton.disabled = true;
+    sendButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Enviando...';
+    
+    try {
+        setStatus('warning', 'Enviando reporte...');
+        
+        const response = await fetch(`${supabaseUrl}/rest/v1/rpc/insertar_reporte`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'apikey': supabaseKey,
+                'Authorization': `Bearer ${supabaseKey}`
+            },
+            body: JSON.stringify({
+                p_nombre: nombre,
+                p_tipo_requerimiento: tipo,
+                p_comentarios: comentarios,
+                p_lat: reportLocation.lat,
+                p_lng: reportLocation.lng
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success !== false) {
+            setStatus('success', 'Reporte enviado correctamente');
+            resetReportForm();
             
-            return 0;
-        } catch (error) {
-            console.error(`Error obteniendo conteo de ${tabla}:`, error);
-            return 0;
-        }
-    }
-    
-    /**
-     * Centrar mapa en Loja
-     */
-    centrarMapa() {
-        this.map.setView([-4.0, -79.2], 13);
-        this.showStatus('info', 'Mapa centrado en Loja');
-    }
-    
-    /**
-     * Toggle pantalla completa
-     */
-    toggleFullscreen() {
-        if (!document.fullscreenElement) {
-            document.documentElement.requestFullscreen().catch(err => {
-                console.error('Error activando pantalla completa:', err);
-            });
+            if (layerGroups['reportes']) {
+                map.removeLayer(layerGroups['reportes']);
+                delete layerGroups['reportes'];
+                await loadReportes();
+            }
         } else {
-            document.exitFullscreen();
-        }
-    }
-    
-    /**
-     * Mostrar/ocultar loading
-     */
-    showLoading(show) {
-        const loadingOverlay = document.getElementById('loading-overlay');
-        loadingOverlay.style.display = show ? 'flex' : 'none';
-    }
-    
-    /**
-     * Mostrar status
-     */
-    showStatus(type, message, autoHide = true) {
-        const statusPanel = document.getElementById('status');
-        
-        // Limpiar clases anteriores
-        statusPanel.className = 'status-panel show';
-        statusPanel.classList.add(type);
-        
-        // Agregar icono según tipo
-        const icons = {
-            success: 'fas fa-check-circle',
-            error: 'fas fa-exclamation-circle',
-            warning: 'fas fa-exclamation-triangle',
-            info: 'fas fa-info-circle'
-        };
-        
-        statusPanel.innerHTML = `<i class="${icons[type]}"></i> ${message}`;
-        
-        // Auto-hide después de 5 segundos
-        if (autoHide) {
-            setTimeout(() => {
-                statusPanel.classList.remove('show');
-            }, 5000);
+            setStatus('error', 'No se pudo enviar el reporte');
         }
         
-        // Scroll al status en móviles si es error
-        if (type === 'error' && window.innerWidth <= 768) {
-            statusPanel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-        }
+    } catch (error) {
+        console.error('Error enviando reporte:', error);
+        setStatus('error', 'Error de conexión al enviar reporte');
+    } finally {
+        sendButton.disabled = false;
+        sendButton.innerHTML = '<i class="fas fa-paper-plane"></i> Enviar Reporte';
     }
+}
+
+function setStatus(type, message) {
+    const statusPanel = document.getElementById('status');
+    statusPanel.className = `status-panel show ${type}`;
     
-    /**
-     * Limpiar status
-     */
-    clearStatus() {
-        const statusPanel = document.getElementById('status');
+    const icons = {
+        success: 'fas fa-check-circle',
+        error: 'fas fa-exclamation-circle',
+        warning: 'fas fa-exclamation-triangle',
+        info: 'fas fa-info-circle'
+    };
+    
+    statusPanel.innerHTML = `<i class="${icons[type]}"></i> ${message}`;
+    
+    setTimeout(() => {
         statusPanel.classList.remove('show');
+    }, 5000);
+}
+
+function safeParseJSON(text) {
+    try {
+        return JSON.parse(text);
+    } catch (e) {
+        return null;
     }
 }
 
-// Funciones globales para compatibilidad
-let geoportal;
-
-function obtenerUbicacion() {
-    geoportal.obtenerUbicacion();
-}
-
-function activarModoMapa() {
-    geoportal.activarModoMapa();
-}
-
-function enviarReporte() {
-    geoportal.enviarReporte();
-}
-
-function cancelarReporte() {
-    geoportal.cancelarReporte();
-}
-
-function centrarMapa() {
-    geoportal.centrarMapa();
-}
-
-function toggleFullscreen() {
-    geoportal.toggleFullscreen();
-}
-
-// Inicialización cuando el DOM está listo
-document.addEventListener('DOMContentLoaded', function() {
-    geoportal = new GeoportalLoja();
-});
-
-// Manejar errores globales
-window.addEventListener('error', function(event) {
-    console.error('Error global:', event.error);
-    if (geoportal) {
-        geoportal.showStatus('error', 'Ha ocurrido un error inesperado');
-    }
-});
-
-// Manejar errores de promesas no capturadas
-window.addEventListener('unhandledrejection', function(event) {
-    console.error('Promise rejection no manejada:', event.reason);
-    if (geoportal) {
-        geoportal.showStatus('error', 'Error de conexión');
-    }
-    event.preventDefault();
-});
+window.addEventListener('load', init);

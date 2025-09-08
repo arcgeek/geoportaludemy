@@ -3,199 +3,135 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Geoportal Loja - Sistema de Información Geográfica</title>
-    
-    <!-- Leaflet CSS -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    
-    <!-- Font Awesome Icons -->
+    <title>Geoportal Loja</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    
-    <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    
-    <!-- Custom CSS -->
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <!-- Header -->
     <header class="header">
         <div class="header-content">
             <div class="logo">
                 <i class="fas fa-map-marked-alt"></i>
                 <h1>Geoportal Loja</h1>
             </div>
-            <div class="header-actions">
-                <button class="btn btn-outline" id="toggle-sidebar">
-                    <i class="fas fa-bars"></i>
-                </button>
+            <div class="search-container">
+                <input type="text" id="search-input" placeholder="Buscar barrio..." class="search-input">
+                <div id="search-results" class="search-results"></div>
             </div>
         </div>
     </header>
 
-    <!-- Main Container -->
     <div class="main-container">
-        <!-- Sidebar -->
-        <aside class="sidebar" id="sidebar">
-            <div class="sidebar-content">
-                <!-- Search Panel -->
-                <div class="panel">
-                    <div class="panel-header">
-                        <i class="fas fa-search"></i>
-                        <h3>Buscar Ubicación</h3>
-                    </div>
-                    <div class="panel-body">
-                        <div class="search-container">
-                            <input type="text" id="search-input" class="search-input" placeholder="Buscar barrio...">
-                            <i class="fas fa-search search-icon"></i>
-                        </div>
-                        <div id="search-results" class="search-results"></div>
-                        <div id="barrio-info" class="barrio-info" style="display: none;"></div>
-                    </div>
+        <aside class="sidebar">
+            <div class="panel">
+                <div class="panel-header">
+                    <i class="fas fa-map"></i>
+                    <h3>Mapa Base</h3>
                 </div>
+                <div class="panel-body">
+                    <div id="basemaps" class="basemap-grid"></div>
+                </div>
+            </div>
 
-                <!-- Report Panel -->
-                <div class="panel">
-                    <div class="panel-header">
-                        <i class="fas fa-exclamation-triangle"></i>
-                        <h3>Reportar Incidente</h3>
-                    </div>
-                    <div class="panel-body">
-                        <div class="location-buttons">
-                            <button class="btn btn-primary" onclick="obtenerUbicacion()">
-                                <i class="fas fa-location-arrow"></i>
-                                Mi Ubicación
-                            </button>
-                            <button class="btn btn-secondary" onclick="activarModoMapa()">
-                                <i class="fas fa-map-pin"></i>
-                                Seleccionar en Mapa
-                            </button>
+            <div class="panel">
+                <div class="panel-header">
+                    <i class="fas fa-layer-group"></i>
+                    <h3>Capas</h3>
+                </div>
+                <div class="panel-body">
+                    <div id="layers" class="layers-container"></div>
+                </div>
+            </div>
+
+            <div class="panel">
+                <div class="panel-header">
+                    <i class="fas fa-plus"></i>
+                    <h3>Enviar Reporte</h3>
+                </div>
+                <div class="panel-body">
+                    <div class="report-form">
+                        <div class="form-group">
+                            <label for="nombre">Nombre</label>
+                            <input type="text" id="nombre" class="form-input" placeholder="Tu nombre">
                         </div>
                         
-                        <form id="form-reporte" class="report-form" style="display: none;">
-                            <div class="form-group">
-                                <label for="nombre">Nombre completo</label>
-                                <input type="text" id="nombre" class="form-input" placeholder="Ingrese su nombre">
-                            </div>
-                            
-                            <div class="form-group">
-                                <label for="tipo">Tipo de reporte</label>
-                                <select id="tipo" class="form-select">
-                                    <option value="">Seleccionar tipo</option>
-                                    <option value="Bache">🕳️ Bache</option>
-                                    <option value="Alumbrado">💡 Alumbrado Público</option>
-                                    <option value="Agua">💧 Servicio de Agua</option>
-                                    <option value="Basura">🗑️ Recolección de Basura</option>
-                                    <option value="Alcantarillado">🚰 Alcantarillado</option>
-                                    <option value="Seguridad">🚨 Seguridad</option>
-                                    <option value="Otro">📝 Otro</option>
-                                </select>
-                            </div>
-                            
-                            <div class="form-group">
-                                <label for="comentarios">Descripción del problema</label>
-                                <textarea id="comentarios" class="form-textarea" rows="4" placeholder="Describa detalladamente el problema..."></textarea>
-                            </div>
-                            
-                            <div class="coordinates-info">
-                                <i class="fas fa-map-marker-alt"></i>
-                                <span id="coords">Coordenadas no seleccionadas</span>
-                            </div>
-                            
-                            <div class="form-actions">
-                                <button type="button" class="btn btn-primary" onclick="enviarReporte()">
-                                    <i class="fas fa-paper-plane"></i>
-                                    Enviar Reporte
-                                </button>
-                                <button type="button" class="btn btn-cancel" onclick="cancelarReporte()">
-                                    <i class="fas fa-times"></i>
-                                    Cancelar
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-
-                <!-- Status Panel -->
-                <div id="status" class="status-panel"></div>
-
-                <!-- Basemaps Panel -->
-                <div class="panel">
-                    <div class="panel-header">
-                        <i class="fas fa-map"></i>
-                        <h3>Mapa Base</h3>
-                    </div>
-                    <div class="panel-body">
-                        <div id="basemaps" class="basemap-container"></div>
-                    </div>
-                </div>
-
-                <!-- Layers Panel -->
-                <div class="panel">
-                    <div class="panel-header">
-                        <i class="fas fa-layer-group"></i>
-                        <h3>Capas del Mapa</h3>
-                    </div>
-                    <div class="panel-body">
-                        <div id="layers" class="layers-container"></div>
-                    </div>
-                </div>
-
-                <!-- Statistics Panel -->
-                <div class="panel">
-                    <div class="panel-header">
-                        <i class="fas fa-chart-bar"></i>
-                        <h3>Estadísticas</h3>
-                    </div>
-                    <div class="panel-body">
-                        <div class="stats-grid">
-                            <div class="stat-item">
-                                <div class="stat-value" id="total-reportes">0</div>
-                                <div class="stat-label">Reportes</div>
-                            </div>
-                            <div class="stat-item">
-                                <div class="stat-value" id="total-barrios">0</div>
-                                <div class="stat-label">Barrios</div>
-                            </div>
-                            <div class="stat-item">
-                                <div class="stat-value" id="servicios-salud">0</div>
-                                <div class="stat-label">Centros Salud</div>
-                            </div>
-                            <div class="stat-item">
-                                <div class="stat-value" id="estaciones-policia">0</div>
-                                <div class="stat-label">Est. Policía</div>
+                        <div class="form-group">
+                            <label for="tipo">Tipo de Requerimiento</label>
+                            <select id="tipo" class="form-select">
+                                <option value="">Seleccionar...</option>
+                                <option value="Agua Potable">Agua Potable</option>
+                                <option value="Alcantarillado">Alcantarillado</option>
+                                <option value="Alumbrado Público">Alumbrado Público</option>
+                                <option value="Vías">Vías</option>
+                                <option value="Seguridad">Seguridad</option>
+                                <option value="Limpieza">Limpieza</option>
+                                <option value="Otro">Otro</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="comentarios">Comentarios</label>
+                            <textarea id="comentarios" class="form-textarea" placeholder="Describe el problema o requerimiento"></textarea>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Ubicación del Reporte</label>
+                            <div class="coords-container">
+                                <div class="coords-display">
+                                    <i class="fas fa-map-marker-alt"></i>
+                                    <span id="coords-text">No seleccionada</span>
+                                </div>
+                                
+                                <div class="coords-actions">
+                                    <button type="button" id="get-current-location" class="btn btn-location">
+                                        <i class="fas fa-location-arrow"></i>
+                                        Mi Ubicación
+                                    </button>
+                                </div>
+                                
+                                <div class="coords-actions">
+                                    <button type="button" id="pick-on-map" class="btn btn-map">
+                                        <i class="fas fa-map"></i>
+                                        Seleccionar en Mapa
+                                    </button>
+                                </div>
+                                
+                                <div class="coords-manual">
+                                    <label>Coordenadas Manuales</label>
+                                    <div class="coords-inputs">
+                                        <input type="number" id="lat-input" placeholder="Latitud" step="any" class="coord-input">
+                                    </div>
+                                    <div class="coords-inputs">
+                                        <input type="number" id="lng-input" placeholder="Longitud" step="any" class="coord-input">
+                                    </div>
+                                    <div class="coords-inputs">
+                                        <button type="button" id="set-manual-coords" class="btn btn-set">
+                                            <i class="fas fa-check"></i>
+                                            Establecer
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
                         </div>
+                        
+                        <button type="button" id="report-send" class="btn btn-send">
+                            <i class="fas fa-paper-plane"></i>
+                            Enviar Reporte
+                        </button>
                     </div>
                 </div>
             </div>
+
+            <div id="status" class="status-panel"></div>
         </aside>
 
-        <!-- Map Container -->
         <main class="map-container">
             <div id="map" class="map"></div>
-            
-            <!-- Loading Overlay -->
-            <div id="loading-overlay" class="loading-overlay" style="display: none;">
-                <div class="loading-spinner">
-                    <i class="fas fa-spinner fa-spin"></i>
-                    <p>Cargando...</p>
-                </div>
-            </div>
-
-            <!-- Map Controls -->
-            <div class="map-controls">
-                <button class="map-control-btn" onclick="centrarMapa()" title="Centrar mapa">
-                    <i class="fas fa-crosshairs"></i>
-                </button>
-                <button class="map-control-btn" onclick="toggleFullscreen()" title="Pantalla completa">
-                    <i class="fas fa-expand"></i>
-                </button>
-            </div>
         </main>
     </div>
 
-    <!-- Scripts -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="script.js"></script>
 </body>
