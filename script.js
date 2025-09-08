@@ -133,49 +133,6 @@ class GeoportalLoja {
         // Event listeners del mapa
         this.map.on('click', (e) => this.onMapClick(e));
         this.map.on('zoomend', () => this.onMapZoomEnd());
-        
-        // Inicializar controles de basemap
-        this.initBasemapControls();
-    }
-    
-    /**
-     * Inicializar controles de basemap
-     */
-    initBasemapControls() {
-        // Agregar event listeners a los radio buttons existentes
-        document.getElementById('basemap-carto').addEventListener('change', (e) => {
-            if (e.target.checked) this.changeBasemap('carto');
-        });
-        
-        document.getElementById('basemap-osm').addEventListener('change', (e) => {
-            if (e.target.checked) this.changeBasemap('osm');
-        });
-        
-        document.getElementById('basemap-esri').addEventListener('change', (e) => {
-            if (e.target.checked) this.changeBasemap('esri');
-        });
-    }
-    
-    /**
-     * Cambiar basemap
-     */
-    changeBasemap(basemapKey) {
-        if (this.currentBasemap && this.basemaps[this.currentBasemap]) {
-            this.map.removeLayer(this.basemaps[this.currentBasemap]);
-        }
-        
-        if (this.basemaps[basemapKey]) {
-            this.basemaps[basemapKey].addTo(this.map);
-            this.currentBasemap = basemapKey;
-            
-            const basemapNames = {
-                carto: 'Carto Dark',
-                osm: 'OpenStreetMap',
-                esri: 'ESRI Satellite'
-            };
-            
-            this.showStatus('success', `Mapa base cambiado a ${basemapNames[basemapKey]}`);
-        }
     }
     
     /**
@@ -226,6 +183,49 @@ class GeoportalLoja {
                 this.map.invalidateSize();
             }
         }, 300);
+    }
+    
+    /**
+     * Crear controles de basemaps
+     */
+    createBasemapControls() {
+        const basemapsContainer = document.getElementById('basemaps');
+        basemapsContainer.innerHTML = '';
+        
+        Object.entries(this.basemaps).forEach(([key, basemap]) => {
+            const basemapItem = document.createElement('div');
+            basemapItem.className = 'basemap-item';
+            if (key === this.currentBasemap) {
+                basemapItem.classList.add('active');
+            }
+            
+            basemapItem.innerHTML = `
+                <input type="radio" name="basemap" id="basemap-${key}" value="${key}" ${key === this.currentBasemap ? 'checked' : ''}>
+                <label for="basemap-${key}" class="basemap-label">${basemap.nombre}</label>
+            `;
+            
+            const radio = basemapItem.querySelector('input');
+            radio.addEventListener('change', (e) => {
+                if (e.target.checked) {
+                    // Actualizar clases activas
+                    document.querySelectorAll('.basemap-item').forEach(item => {
+                        item.classList.remove('active');
+                    });
+                    basemapItem.classList.add('active');
+                    
+                    // Cambiar basemap
+                    this.changeBasemap(key);
+                }
+            });
+            
+            // También permitir click en el contenedor
+            basemapItem.addEventListener('click', () => {
+                radio.checked = true;
+                radio.dispatchEvent(new Event('change'));
+            });
+            
+            basemapsContainer.appendChild(basemapItem);
+        });
     }
     
     /**
